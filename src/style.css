@@ -544,3 +544,72 @@ tbody tr:hover { background: var(--primary-soft); }
 @media (prefers-reduced-motion: reduce) {
   .toast, .toast.saliendo, .modal, .modal-fondo { animation: none; }
 }
+
+/* CARRUSEL DEL LOGIN */
+.carrusel { max-width: 460px; }
+
+.carrusel-etiqueta {
+  display: inline-block;
+  margin: 0 0 22px;
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.slides { display: grid; }
+
+.slide {
+  grid-area: 1 / 1;
+  margin: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity 0.6s ease, transform 0.6s ease, visibility 0.6s;
+}
+
+.slide.activa { opacity: 1; visibility: visible; transform: none; }
+
+.slide-ilustracion {
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 3 / 2;
+  margin-bottom: 26px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.slide-ilustracion svg { width: 100%; height: 100%; display: block; }
+.slide-ilustracion .acento { stroke: #7cc4ff; }
+.slide-ilustracion .acento-fill { fill: rgba(124, 196, 255, 0.18); stroke: rgba(124, 196, 255, 0.6); }
+
+.slide figcaption p { color: rgba(255, 255, 255, 0.75); font-size: 15px; line-height: 1.6; margin: 0; }
+
+.dots { display: flex; gap: 8px; margin-top: 24px; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: width 0.3s, background 0.3s;
+}
+
+.dot:hover { background: rgba(255, 255, 255, 0.6); }
+.dot.activa { width: 24px; background: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide { transition: none; }
+}
+
+@media (max-height: 700px) {
+  .slide-ilustracion { max-width: 260px; margin-bottom: 18px; }
+}
