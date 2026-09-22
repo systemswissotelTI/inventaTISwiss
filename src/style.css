@@ -140,7 +140,7 @@ button[type="submit"] {
 
 button:hover { background: var(--primary-dark); }
 
-#selectFileBtn {
+#selectFileBtn, #invSelectBtn {
   padding: 7px 16px;
   background: var(--surface);
   color: var(--primary);
@@ -150,7 +150,7 @@ button:hover { background: var(--primary-dark); }
   font-weight: 600;
 }
 
-#selectFileBtn:hover { background: var(--primary-soft); }
+#selectFileBtn:hover, #invSelectBtn:hover { background: var(--primary-soft); }
 
 .btn-danger {
   background: var(--surface) !important;
@@ -737,4 +737,158 @@ form.modal-form { display: block; }
   text-align: center;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* PESTAÑAS */
+.pestanas {
+  display: flex;
+  gap: 4px;
+  margin: -8px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pestana {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  margin-bottom: -1px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pestana:hover { background: none; color: var(--text); }
+.pestana.activa { color: var(--primary); border-bottom-color: var(--primary); }
+
+.cuenta {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e4e7ec;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pestana.activa .cuenta { background: var(--primary); color: #fff; }
+
+/* COLUMNA EQUIPOS EN PERSONAL */
+.centro { text-align: center; }
+.sin-dato { color: #9aa5b4; }
+
+.chip-equipos {
+  min-width: 28px;
+  padding: 2px 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid #c9d5e5;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chip-equipos:hover { background: var(--primary); color: #fff; }
+
+/* INVENTARIO */
+.ayuda { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+.progress-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.h2-flex { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.h2-acciones { display: flex; gap: 8px; }
+.h2-acciones .btn-danger { margin: 0; }
+.h2-acciones .btn-confirmar { font-size: 13px; }
+
+.resumen { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip b { color: var(--primary); }
+.chip:hover { background: var(--primary-soft); border-color: var(--primary); }
+.chip-total { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chip-total b { color: #fff; }
+.chip-total:hover { background: var(--primary-dark); }
+
+.filtros { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.filtros input { flex: 1 1 280px; }
+.filtros select { flex: 0 1 200px; }
+
+.tabla-ancha td, .tabla-ancha th { white-space: nowrap; }
+.tabla-ancha td.largo { white-space: normal; min-width: 240px; }
+
+/* La columna de acciones queda fija a la izquierda al desplazarse en horizontal */
+.tabla-ancha td.acciones, .tabla-ancha th.th-acciones {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--border);
+}
+
+.tabla-ancha th.th-acciones { z-index: 3; background: var(--primary); }
+.tabla-ancha tbody tr:nth-child(even) td.acciones { background: #f8f9fb; }
+.tabla-ancha tbody tr:hover td.acciones { background: var(--primary-soft); }
+
+th.th-derivada { background: #2d4d78; }
+td.na { color: #b45309; font-weight: 600; }
+
+.estado { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.estado-verde { background: #dcfce7; color: #166534; }
+.estado-ambar { background: #fef3c7; color: #92400e; }
+.estado-rojo { background: #fee2e2; color: #991b1b; }
+
+/* FORMULARIO DE EQUIPO */
+.modal-grande { width: min(920px, 100%); }
+
+.grupo {
+  margin: 0 0 16px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.grupo legend { padding: 0 6px; font-size: 13px; font-weight: 700; color: var(--primary); }
+.form-grid.tres { grid-template-columns: repeat(3, 1fr); }
+.campo textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 13px; resize: vertical; }
+
+.derivado {
+  padding: 9px 10px;
+  min-height: 37px;
+  background: #f8f9fb;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.derivado.na { color: #b45309; font-weight: 600; }
+
+@media (max-width: 760px) {
+  .form-grid.tres { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 560px) {
+  .form-grid.tres { grid-template-columns: 1fr; }
 }
