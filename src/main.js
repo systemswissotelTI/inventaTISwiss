@@ -33,7 +33,7 @@ function requiereConfig() {
 }
 
 // IMPORTADOR EXCEL
-const dropZone = document.getElementById("dropZone");
+const dropZone = document.getElementById("seccionPersonal");
 const excelInput = document.getElementById("excelInput");
 const selectFileBtn = document.getElementById("selectFileBtn");
 
@@ -91,7 +91,7 @@ async function procesarExcel(file) {
     const statusDiv = document.getElementById("importStatus");
     const statusText = document.getElementById("statusText");
     const progressFill = document.getElementById("progressFill");
-    statusDiv.style.display = "block";
+    statusDiv.hidden = false;
     
     const batchSize = 20;
     for (let i = 0; i < filas.length; i += batchSize) {
@@ -127,52 +127,15 @@ async function procesarExcel(file) {
     statusText.textContent = `${filas.length} registros importados`;
     notificar("success", "Importación completada", `${nuevos} nuevos y ${aActualizar} actualizados${omitidos ? `; ${omitidos} filas omitidas` : ""}.`);
     if (fechasNoReconocidas) notificar("warning", "Fechas sin reconocer", `${fechasNoReconocidas} fechas se guardaron tal cual porque no tienen un formato de fecha válido.`);
-    setTimeout(() => { statusDiv.style.display = "none"; excelInput.value = ""; cargar(); }, 1500);
+    setTimeout(() => { statusDiv.hidden = true; progressFill.style.width = "0%"; excelInput.value = ""; cargar(); }, 1500);
   } catch (error) {
     notificar("error", "No se pudo importar", error.message);
-    document.getElementById("importStatus").style.display = "none";
+    document.getElementById("importStatus").hidden = true;
     excelInput.value = "";
   }
 }
 
-// CRUD MANUAL
-async function guardar(e) {
-  e.preventDefault();
-  if (!requiereConfig()) return;
-  const f = e.target;
-  const data = {
-    DNI: f.DNI.value.trim(),
-    Código: f.Código.value.trim(),
-    Nombre: f.Nombre.value.trim().toUpperCase(),
-    Foto: f.Foto.value,
-    "Fecha de Ingreso": f["Fecha de Ingreso"].value,
-    "Puesto Real": f["Puesto Real"].value.trim(),
-    "CC Real": f["CC Real"].value.trim(),
-    "Unidad Real": f["Unidad Real"].value.trim(),
-    "Nombre Host": f["Nombre Host"].value.trim(),
-    "Nueva Tajeta Micros": f["Nueva Tajeta Micros"].value.trim()
-  };
-  const existente = allRecords.find(r => claveDni(r.DNI) === claveDni(data.DNI));
-  if (existente) {
-    const editar = await confirmar({
-      titulo: `Ya existe un registro con DNI ${data.DNI}`,
-      mensaje: `${existente.Nombre || ""}. Para evitar duplicados, edita el registro existente.`,
-      aceptar: "Editar existente",
-      cancelar: "Volver"
-    });
-    if (editar) abrirEdicion(existente);
-    return;
-  }
-  try {
-    await addDoc(col, data);
-    f.reset();
-    notificar("success", "Registro guardado", data.Nombre);
-    cargar();
-  } catch (error) {
-    notificar("error", "No se pudo guardar", error.message);
-  }
-}
-
+// CRUD
 async function eliminar(id, nombre) {
   if (!requiereConfig()) return;
   const ok = await confirmar({ titulo: "¿Eliminar este registro?", mensaje: nombre || "", aceptar: "Eliminar", peligro: true });
@@ -217,8 +180,11 @@ const CAMPOS = [
   { k: "Nueva Tajeta Micros", label: "Tarjeta Micros" }
 ];
 
+// Ventana de alta (p = null) o edición de un registro de Personal
 function abrirEdicion(p) {
   if (!requiereConfig()) return;
+  const nuevo = !p;
+  p = p || {};
   const fondo = document.createElement("div");
   fondo.className = "modal-fondo";
   const campos = CAMPOS.map((c, i) => {
@@ -241,15 +207,15 @@ function abrirEdicion(p) {
     <form class="modal modal-form" role="dialog" aria-modal="true" aria-labelledby="edTitulo" novalidate>
       <div class="modal-cabecera">
         <span class="modal-icon">${ICONO_EDITAR}</span>
-        <div><h3 id="edTitulo">Editar registro</h3><p></p></div>
+        <div><h3 id="edTitulo">${nuevo ? "Nuevo registro" : "Editar registro"}</h3><p></p></div>
       </div>
       <div class="form-grid">${campos}</div>
       <div class="modal-acciones">
         <button type="button" class="btn-outline" data-cancelar>Cancelar</button>
-        <button type="submit" class="btn-confirmar">Guardar cambios</button>
+        <button type="submit" class="btn-confirmar">${nuevo ? "Agregar" : "Guardar cambios"}</button>
       </div>
     </form>`;
-  fondo.querySelector(".modal-cabecera p").textContent = p.Nombre || "";
+  fondo.querySelector(".modal-cabecera p").textContent = nuevo ? "Completa los datos de la persona o área" : (p.Nombre || "");
   const form = fondo.querySelector("form");
 
   const cerrar = () => { document.removeEventListener("keydown", teclas); fondo.remove(); };
@@ -271,18 +237,31 @@ function abrirEdicion(p) {
       notificar("warning", "Faltan datos obligatorios", faltan.join(", "));
       return;
     }
+    // Evitar duplicados: el DNI no puede repetirse en otro registro
+    const existente = allRecords.find(r => r.id !== p.id && claveDni(r.DNI) === claveDni(datos.DNI));
+    if (existente) {
+      const editar = await confirmar({
+        titulo: `Ya existe un registro con DNI ${datos.DNI}`,
+        mensaje: `${existente.Nombre || ""}. Para evitar duplicados, edita el registro existente.`,
+        aceptar: "Editar existente",
+        cancelar: "Volver"
+      });
+      if (editar) { cerrar(); abrirEdicion(existente); }
+      return;
+    }
     const btn = form.querySelector('[type="submit"]');
     btn.disabled = true;
     btn.textContent = "Guardando…";
     try {
-      await updateDoc(doc(db, COLLECTION, p.id), datos);
+      if (nuevo) await addDoc(col, datos);
+      else await updateDoc(doc(db, COLLECTION, p.id), datos);
       cerrar();
-      notificar("success", "Cambios guardados", datos.Nombre);
+      notificar("success", nuevo ? "Registro agregado" : "Cambios guardados", datos.Nombre);
       cargar();
     } catch (error) {
-      notificar("error", "No se pudieron guardar los cambios", error.message);
+      notificar("error", nuevo ? "No se pudo agregar" : "No se pudieron guardar los cambios", error.message);
       btn.disabled = false;
-      btn.textContent = "Guardar cambios";
+      btn.textContent = nuevo ? "Agregar" : "Guardar cambios";
     }
   });
 
@@ -577,4 +556,4 @@ togglePassword.addEventListener("click", () => {
 document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
 
 // INICIALIZAR
-document.getElementById("form-personal").addEventListener("submit", guardar);
+document.getElementById("personalNuevo").addEventListener("click", () => abrirEdicion(null));
