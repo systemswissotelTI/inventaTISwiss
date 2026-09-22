@@ -36,9 +36,9 @@ const excelInput = document.getElementById("excelInput");
 const selectFileBtn = document.getElementById("selectFileBtn");
 
 selectFileBtn.addEventListener("click", () => excelInput.click());
-dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.style.background = "#e3f2fd"; });
-dropZone.addEventListener("dragleave", () => { dropZone.style.background = "#f0f7ff"; });
-dropZone.addEventListener("drop", (e) => { e.preventDefault(); dropZone.style.background = "#f0f7ff"; procesarExcel(e.dataTransfer.files[0]); });
+dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => { dropZone.classList.remove("dragover"); });
+dropZone.addEventListener("drop", (e) => { e.preventDefault(); dropZone.classList.remove("dragover"); procesarExcel(e.dataTransfer.files[0]); });
 excelInput.addEventListener("change", (e) => { if(e.target.files[0]) procesarExcel(e.target.files[0]); });
 
 async function procesarExcel(file) {
