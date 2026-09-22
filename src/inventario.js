@@ -115,7 +115,7 @@ export function iniciarInventario(opciones) {
   el.thead.innerHTML = `<tr><th class="th-acciones">Acciones</th>${CAMPOS.map(c => `<th${c.de ? ' class="th-derivada" title="Se obtiene de Personal por DNI"' : ""}>${escapeHtml(c.k)}</th>`).join("")}</tr>`;
 
   conectarImportador({
-    zona: document.getElementById("invDropZone"),
+    zona: document.getElementById("invSeccion"),
     boton: document.getElementById("invSelectBtn"),
     input: el.input,
     alSoltar: importar
