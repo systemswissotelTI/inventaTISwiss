@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "firebase": "^10.13.0"
   },
   "devDependencies": {

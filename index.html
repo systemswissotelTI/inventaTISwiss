@@ -79,10 +79,11 @@
 <nav class="pestanas" role="tablist" aria-label="Módulos">
   <button type="button" class="pestana activa" role="tab" data-vista="personal" aria-controls="vistaPersonal" aria-selected="true">Personal <span class="cuenta" id="cuentaPersonal">0</span></button>
   <button type="button" class="pestana" role="tab" data-vista="inventario" aria-controls="vistaInventario" aria-selected="false">Inventario TI <span class="cuenta" id="cuentaInventario">0</span></button>
+  <button type="button" class="pestana" role="tab" data-vista="reportes" aria-controls="vistaReportes" aria-selected="false">Reportes</button>
 </nav>
 <div id="vistaPersonal" role="tabpanel">
 <section id="seccionPersonal" class="zona-archivo">
-  <h2 class="h2-flex">Personal <span class="h2-acciones"><button type="button" id="personalNuevo" class="btn-confirmar">+ Nuevo</button><button type="button" id="selectFileBtn" class="btn-importar" title="Importa la hoja Personal del Excel. También puedes arrastrar el archivo sobre esta sección."><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg> Importar Excel</button><button type="button" id="dupBtn" class="btn-warning" hidden>Quitar duplicados</button><button type="button" id="clearAllBtn" class="btn-danger">Borrar todo</button></span></h2>
+  <h2 class="h2-flex">Personal <span class="h2-acciones"><button type="button" id="personalNuevo" class="btn-confirmar">+ Nuevo</button><button type="button" id="selectFileBtn" class="btn-importar" title="Importa la hoja Personal del Excel. También puedes arrastrar el archivo sobre esta sección."><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg> Importar Excel</button><button type="button" id="personalExportar" class="btn-exportar" title="Descarga en Excel lo que se ve con la búsqueda actual"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> Exportar Excel</button><button type="button" id="dupBtn" class="btn-warning" hidden>Quitar duplicados</button><button type="button" id="clearAllBtn" class="btn-danger">Borrar todo</button></span></h2>
   <input type="file" id="excelInput" accept=".xlsx,.xls" hidden>
   <div id="importStatus" class="import-status" hidden><div class="progress-bar"><div id="progressFill"></div></div><p id="statusText"></p></div>
   <div class="filtros"><input type="search" id="searchInput" placeholder="Buscar por nombre o DNI" aria-label="Buscar en Personal"></div>
@@ -90,7 +91,7 @@
 </div>
 <div id="vistaInventario" role="tabpanel" hidden>
 <section id="invSeccion" class="zona-archivo">
-  <h2 class="h2-flex">Inventario de equipos <span class="h2-acciones"><button type="button" id="invNuevo" class="btn-confirmar">+ Nuevo equipo</button><button type="button" id="invSelectBtn" class="btn-importar" title="Importa la hoja InventarioSwiss del Excel. Los equipos existentes (mismo Item) se actualizan. También puedes arrastrar el archivo sobre esta sección."><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg> Importar Excel</button><button type="button" id="invBorrarTodo" class="btn-danger">Borrar todo</button></span></h2>
+  <h2 class="h2-flex">Inventario de equipos <span class="h2-acciones"><button type="button" id="invNuevo" class="btn-confirmar">+ Nuevo equipo</button><button type="button" id="invSelectBtn" class="btn-importar" title="Importa la hoja InventarioSwiss del Excel. Los equipos existentes (mismo Item) se actualizan. También puedes arrastrar el archivo sobre esta sección."><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg> Importar Excel</button><button type="button" id="invExportar" class="btn-exportar" title="Descarga en Excel los equipos que se ven con los filtros actuales"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> Exportar Excel</button><button type="button" id="invBorrarTodo" class="btn-danger">Borrar todo</button></span></h2>
   <input type="file" id="invInput" accept=".xlsx,.xls" hidden>
   <div id="invStatus" class="import-status" hidden><div class="progress-bar"><div id="invProgress" class="progress-fill"></div></div><p id="invStatusText"></p></div>
   <div class="resumen" id="invResumen"></div>
@@ -101,6 +102,28 @@
   </div>
   <div class="tabla-wrap tabla-ancha" id="invTablaWrap"><table><thead id="invThead"></thead><tbody id="invTbody"></tbody></table></div>
   <nav class="paginacion" id="invPaginacion" aria-label="Paginación del inventario"></nav>
+</section>
+</div>
+<div id="vistaReportes" role="tabpanel" hidden>
+<section>
+  <h2 class="h2-flex">Reportes dinámicos <span class="h2-acciones"><button type="button" id="repExportar" class="btn-exportar" title="Descarga el reporte en Excel con colores y agrupado"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> Exportar Excel</button></span></h2>
+  <div class="presets" id="repPresets" role="tablist" aria-label="Tipo de reporte"></div>
+  <div id="repCuerpo">
+    <div class="kpis" id="repKpis"></div>
+    <div class="rep-filtros">
+      <div class="rep-filtro"><span class="rep-etiqueta">Equipo</span><div id="repFEquipo" class="chips-toggle"></div></div>
+      <div class="rep-filtro"><span class="rep-etiqueta">Estado</span><div id="repFEstado" class="chips-toggle"></div></div>
+      <div class="filtros">
+        <input type="search" id="repBuscar" placeholder="Buscar en el reporte…" aria-label="Buscar en el reporte">
+        <select id="repFPropiedad" aria-label="Filtrar por propiedad"></select>
+        <select id="repFUnidad" aria-label="Filtrar por unidad"></select>
+        <label class="agrupar">Agrupar por <select id="repAgrupar"></select></label>
+      </div>
+    </div>
+    <div class="rep-plegado"><button type="button" id="repDesplegar" class="link">Expandir todo</button> · <button type="button" id="repPlegar" class="link">Contraer todo</button></div>
+    <div class="tabla-wrap tabla-ancha"><table class="tabla-reporte"><thead id="repThead"></thead><tbody id="repTbody"></tbody></table></div>
+  </div>
+  <div id="repCatalogos" hidden></div>
 </section>
 </div>
 <footer class="copy">© <span class="anio">2026</span> Swissôtel Lima · Perú. Todos los derechos reservados.</footer>

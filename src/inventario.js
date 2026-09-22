@@ -3,8 +3,9 @@
 // igual que los VLOOKUP del Excel.
 
 import { db } from "./firebase-config.js";
-import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, writeBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, writeBatch } from "firebase/firestore";
 import { notificar, confirmar } from "./notificaciones.js";
+import { exportarExcel } from "./exportar.js";
 import {
   escapeHtml, normalizarFecha, textoDni, claveDni, limpiarClaves,
   ICONO_EDITAR, htmlPaginacion, conectarImportador
@@ -12,6 +13,8 @@ import {
 
 const COLECCION = "inventario";
 const HOJA = "InventarioSwiss";
+const HOJA_DATOS = "Datos";
+const DOC_CATALOGOS = ["catalogos", "datos"];
 const POR_PAGINA = 50;
 
 // Columnas en el mismo orden que la hoja. "de" = campo de Personal del que se obtiene (VLOOKUP por DNI)
@@ -64,6 +67,7 @@ const GUARDADOS = CAMPOS.filter(c => !c.de);
 
 let col = null;
 let equipos = [];
+let catalogos = {};
 let lista = [];
 let pagina = 1;
 let ctx = { requiereConfig: () => false, obtenerPersonal: () => [], alCambiar: () => {} };
@@ -84,6 +88,24 @@ function valor(e, c, personal) {
   if (!k) return "";
   const p = personal.get(k);
   return p ? (p[c.de] ?? "") : { na: true };
+}
+
+// Equipos con las columnas de Personal ya resueltas (para los reportes)
+export function equiposResueltos() {
+  const personal = mapaPersonal();
+  return equipos.map(e => {
+    const r = { ...e };
+    CAMPOS.filter(c => c.de).forEach(c => {
+      const v = valor(e, c, personal);
+      r[c.k] = typeof v === "object" ? "#N/A" : v;
+    });
+    return r;
+  });
+}
+
+// Listas de la hoja "Datos" del Excel (valores permitidos por columna)
+export function obtenerCatalogos() {
+  return catalogos;
 }
 
 export function contarEquiposPorDni() {
@@ -137,6 +159,37 @@ export function iniciarInventario(opciones) {
   });
   document.getElementById("invNuevo").addEventListener("click", () => abrirFormulario(null));
   document.getElementById("invBorrarTodo").addEventListener("click", borrarTodo);
+  document.getElementById("invExportar").addEventListener("click", (e) => exportarLista(e.currentTarget));
+}
+
+// Descarga en Excel (con formato) los equipos que se ven con los filtros actuales
+async function exportarLista(boton) {
+  if (!lista.length) { notificar("info", "No hay equipos que exportar"); return; }
+  const personal = mapaPersonal();
+  const columnas = CAMPOS.filter(c => !c.secreto);
+  const filas = lista.map(e => Object.fromEntries(columnas.map(c => {
+    const v = valor(e, c, personal);
+    return [c.k, typeof v === "object" ? "#N/A" : v];
+  })));
+  const filtros = [el.fEquipo.value && `Equipo: ${el.fEquipo.value}`, el.fEstado.value && `Estado: ${el.fEstado.value}`,
+    el.buscar.value.trim() && `Búsqueda: "${el.buscar.value.trim()}"`].filter(Boolean).join(" · ");
+  boton.disabled = true;
+  try {
+    await exportarExcel({
+      archivo: "Inventario TI",
+      hoja: "Inventario TI",
+      titulo: "Inventario de equipos TI",
+      detalle: filtros || "Todos los equipos",
+      columnas: columnas.map(c => c.k),
+      filas,
+      total: `Total: ${filas.length} equipos`
+    });
+    notificar("success", "Inventario exportado", `${filas.length} equipos en Excel.`);
+  } catch (error) {
+    notificar("error", "No se pudo exportar", error.message);
+  } finally {
+    boton.disabled = false;
+  }
 }
 
 export async function cargarInventario() {
@@ -146,6 +199,10 @@ export async function cargarInventario() {
     equipos = [];
     snap.forEach(d => equipos.push({ id: d.id, ...d.data() }));
     equipos.sort((a, b) => (Number(a.Item) || Infinity) - (Number(b.Item) || Infinity));
+    try {
+      const cat = await getDoc(doc(db, ...DOC_CATALOGOS));
+      catalogos = cat.exists() ? (cat.data().listas || {}) : {};
+    } catch { catalogos = {}; }
     actualizarFiltros();
     filtrar(false);
     ctx.alCambiar(equipos.length);
@@ -261,7 +318,7 @@ function abrirFormulario(e) {
 
   // Sugerencias con los valores ya usados en cada columna
   const listas = GUARDADOS.filter(c => !c.fecha && !c.numero && !c.secreto && !c.largo && c.k !== "DNI")
-    .map((c, i) => ({ c, id: `dl-inv-${i}`, valores: distintos(c.k) }));
+    .map((c, i) => ({ c, id: `dl-inv-${i}`, valores: [...new Set([...(catalogos[c.k] || []), ...distintos(c.k)])] }));
   const idLista = new Map(listas.map(l => [l.c.k, l.id]));
   const dlPersonal = [...personal.values()].map(p => `<option value="${escapeHtml(textoDni(p.DNI))}">${escapeHtml(p.Nombre)}</option>`).join("");
 
@@ -460,6 +517,24 @@ export function leerHojaInventario(wb) {
   return { nombreHoja, registros: [...porClave.values()], fechasMal: fechasMal.n };
 }
 
+// Lee la hoja "Datos": cada columna es una lista de valores permitidos (catálogo)
+export function leerHojaDatos(wb) {
+  const nombre = wb.SheetNames.find(n => n.trim().toLowerCase() === HOJA_DATOS.toLowerCase());
+  if (!nombre) return null;
+  const ws = wb.Sheets[nombre];
+  const matriz = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  const filaCab = matriz.findIndex(r => r.some(c => String(c).trim() === "Equipo") && r.some(c => String(c).trim() === "Marca"));
+  if (filaCab < 0) return null;
+  const cab = matriz[filaCab].map(c => String(c).trim());
+  const listas = {};
+  cab.forEach((h, i) => {
+    if (!h) return;
+    const valores = [...new Set(matriz.slice(filaCab + 1).map(r => String(r[i] ?? "").trim()).filter(Boolean))];
+    if (valores.length) listas[h] = valores;
+  });
+  return Object.keys(listas).length ? listas : null;
+}
+
 async function importar(file) {
   if (!ctx.requiereConfig()) return;
   try {
@@ -467,6 +542,7 @@ async function importar(file) {
     const leido = leerHojaInventario(wb);
     if (leido.error) { notificar("error", ...leido.error); return; }
     const { registros } = leido;
+    const listasDatos = leerHojaDatos(wb);
 
     await cargarInventario();
     const existentes = new Map();
@@ -480,7 +556,8 @@ async function importar(file) {
     const ok = await confirmar({
       titulo: `¿Importar ${registros.length} equipos?`,
       mensaje: `${nuevos} nuevos y ${aActualizar} ya existentes (mismo Item) que se actualizarán.`
-        + (sinPersona ? ` ${sinPersona} tienen un DNI que no está en Personal (se verá #N/A).` : ""),
+        + (sinPersona ? ` ${sinPersona} tienen un DNI que no está en Personal (se verá #N/A).` : "")
+        + (listasDatos ? ` También se actualizan los catálogos de la hoja Datos (${Object.keys(listasDatos).length} listas).` : ""),
       aceptar: "Importar"
     });
     if (!ok) return;
@@ -498,7 +575,8 @@ async function importar(file) {
       el.progreso.style.width = `${Math.round(hechos / registros.length * 100)}%`;
       el.statusText.textContent = `Importando ${hechos}/${registros.length}…`;
     }
-    notificar("success", "Inventario importado", `${nuevos} equipos nuevos y ${aActualizar} actualizados.`);
+    if (listasDatos) await setDoc(doc(db, ...DOC_CATALOGOS), { listas: listasDatos, actualizado: new Date().toISOString() });
+    notificar("success", "Inventario importado", `${nuevos} equipos nuevos y ${aActualizar} actualizados${listasDatos ? "; catálogos de Datos actualizados" : ""}.`);
     if (leido.fechasMal) notificar("warning", "Fechas sin reconocer", `${leido.fechasMal} fechas se guardaron tal cual.`);
     setTimeout(() => { el.status.hidden = true; el.progreso.style.width = "0%"; }, 1500);
     cargarInventario();
