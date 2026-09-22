@@ -3,12 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1f3a5f">
 <title>inventaTISwiss</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-<div class="container">
-<header><h1>inventaTISwiss</h1><p>Gestión de Personal</p></header>
+<div id="splash" class="splash"><div class="spinner" aria-label="Cargando"></div></div>
+
+<main id="login" class="login" hidden>
+  <aside class="login-brand">
+    <div class="brand-mark"><img src="/favicon.svg" alt="" width="40" height="40"><span>inventaTISwiss</span></div>
+    <div class="brand-copy">
+      <h2>Gestión de personal centralizada</h2>
+      <p>Importa, consulta y mantén actualizado el registro del personal desde un único lugar seguro.</p>
+    </div>
+    <p class="brand-foot">Acceso restringido a usuarios autorizados.</p>
+  </aside>
+  <div class="login-panel">
+    <form id="loginForm" class="login-card" novalidate>
+      <div class="login-head">
+        <img class="login-logo" src="/favicon.svg" alt="" width="44" height="44">
+        <h1>Iniciar sesión</h1>
+        <p>Introduce tus credenciales para continuar.</p>
+      </div>
+      <div id="loginAlert" class="login-alert" role="alert" hidden></div>
+      <div class="field">
+        <label for="loginEmail">Correo electrónico</label>
+        <input id="loginEmail" type="email" autocomplete="username" placeholder="nombre@empresa.com" required>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="loginPassword">Contraseña</label><button type="button" id="forgotBtn" class="link">¿Olvidaste tu contraseña?</button></div>
+        <div class="password-wrap">
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          <button type="button" id="togglePassword" class="toggle-pass" aria-label="Mostrar contraseña">Mostrar</button>
+        </div>
+        <small id="capsWarning" class="caps" hidden>Bloq Mayús está activado</small>
+      </div>
+      <label class="remember"><input id="rememberMe" type="checkbox" checked> Mantener la sesión iniciada</label>
+      <button type="submit" id="loginBtn" class="btn-primary"><span class="btn-label">Entrar</span></button>
+      <p class="login-note">¿No tienes acceso? Solicítalo al administrador del sistema.</p>
+    </form>
+  </div>
+</main>
+
+<div id="app" class="container" hidden>
+<header class="app-header">
+  <div class="app-title"><img src="/favicon.svg" alt="" width="36" height="36"><div><h1>inventaTISwiss</h1><p>Gestión de Personal</p></div></div>
+  <div class="user-box"><span id="userEmail" class="user-email"></span><button type="button" id="logoutBtn" class="btn-outline">Cerrar sesión</button></div>
+</header>
 <p id="estado" hidden></p>
 <section class="importador"><h2>Importar Excel</h2><div class="drop-zone" id="dropZone"><p>Arrastra aquí el archivo o <button type="button" id="selectFileBtn">Selecciona</button></p><input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none"></div><div id="importStatus" style="display:none;"><div class="progress-bar"><div id="progressFill"></div></div><p id="statusText"></p></div></section>
 <section><h2>Agregar manual</h2><form id="form-personal"><input name="DNI" placeholder="DNI" required><input name="Código" placeholder="Código" required><input name="Nombre" placeholder="Nombre" required><select name="Foto"><option></option><option>SI</option><option>NO</option></select><input name="Fecha de Ingreso" type="date"><input name="Puesto Real" placeholder="Puesto"><input name="CC Real" placeholder="CC"><input name="Unidad Real" placeholder="Unidad"><input name="Nombre Host" placeholder="Host"><input name="Nueva Tajeta Micros" placeholder="Micros"><button type="submit">Guardar</button></form></section>

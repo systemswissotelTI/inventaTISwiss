@@ -1,5 +1,9 @@
-import { db, configOk } from "./firebase-config.js";
+import { db, auth, configOk } from "./firebase-config.js";
 import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch } from "firebase/firestore";
+import {
+  onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
+  setPersistence, browserLocalPersistence, browserSessionPersistence
+} from "firebase/auth";
 
 const COLLECTION = "personal";
 const col = configOk ? collection(db, COLLECTION) : null;
@@ -187,6 +191,118 @@ document.getElementById("clearAllBtn").addEventListener("click", async () => {
   }
 });
 
+// AUTENTICACIÓN
+const splash = document.getElementById("splash");
+const loginView = document.getElementById("login");
+const appView = document.getElementById("app");
+const loginForm = document.getElementById("loginForm");
+const loginEmail = document.getElementById("loginEmail");
+const loginPassword = document.getElementById("loginPassword");
+const loginBtn = document.getElementById("loginBtn");
+const loginAlert = document.getElementById("loginAlert");
+const rememberMe = document.getElementById("rememberMe");
+const togglePassword = document.getElementById("togglePassword");
+const capsWarning = document.getElementById("capsWarning");
+
+const MENSAJES_AUTH = {
+  "auth/invalid-credential": "Correo o contraseña incorrectos.",
+  "auth/invalid-login-credentials": "Correo o contraseña incorrectos.",
+  "auth/wrong-password": "Correo o contraseña incorrectos.",
+  "auth/user-not-found": "Correo o contraseña incorrectos.",
+  "auth/invalid-email": "El correo electrónico no es válido.",
+  "auth/user-disabled": "Esta cuenta está deshabilitada. Contacta con el administrador.",
+  "auth/too-many-requests": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+  "auth/network-request-failed": "Sin conexión. Revisa tu red e inténtalo de nuevo.",
+  "auth/operation-not-allowed": "El acceso con correo y contraseña no está habilitado en Firebase."
+};
+
+function mostrarLoginAlerta(msg, tipo = "error") {
+  loginAlert.textContent = msg;
+  loginAlert.className = `login-alert ${tipo}`;
+  loginAlert.hidden = false;
+}
+
+function setCargando(cargando) {
+  loginBtn.disabled = cargando;
+  loginBtn.classList.toggle("loading", cargando);
+}
+
+function mostrarVista(user) {
+  splash.hidden = true;
+  loginView.hidden = Boolean(user);
+  appView.hidden = !user;
+}
+
+if (!configOk) {
+  mostrarVista(null);
+  mostrarLoginAlerta("Falta la configuración de Firebase (VITE_FIREBASE_API_KEY / VITE_FIREBASE_PROJECT_ID). No es posible iniciar sesión.");
+  loginBtn.disabled = true;
+} else {
+  onAuthStateChanged(auth, (user) => {
+    mostrarVista(user);
+    if (user) {
+      document.getElementById("userEmail").textContent = user.email || "";
+      loginForm.reset();
+      rememberMe.checked = true;
+      loginAlert.hidden = true;
+      cargar();
+    } else {
+      allRecords = [];
+      mostrarTabla([]);
+      ocultarAviso();
+      loginEmail.focus();
+    }
+  });
+}
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  if (!email || !password) {
+    mostrarLoginAlerta("Introduce tu correo y tu contraseña.");
+    return;
+  }
+  loginAlert.hidden = true;
+  setCargando(true);
+  try {
+    await setPersistence(auth, rememberMe.checked ? browserLocalPersistence : browserSessionPersistence);
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    mostrarLoginAlerta(MENSAJES_AUTH[error.code] || `No se pudo iniciar sesión: ${error.message}`);
+    loginPassword.select();
+  } finally {
+    setCargando(false);
+  }
+});
+
+document.getElementById("forgotBtn").addEventListener("click", async () => {
+  const email = loginEmail.value.trim();
+  if (!email) {
+    mostrarLoginAlerta("Escribe tu correo arriba y vuelve a pulsar «¿Olvidaste tu contraseña?».", "info");
+    loginEmail.focus();
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    mostrarLoginAlerta(`Si ${email} tiene una cuenta, recibirás un correo para restablecer la contraseña.`, "success");
+  } catch (error) {
+    mostrarLoginAlerta(MENSAJES_AUTH[error.code] || `No se pudo enviar el correo: ${error.message}`);
+  }
+});
+
+togglePassword.addEventListener("click", () => {
+  const visible = loginPassword.type === "text";
+  loginPassword.type = visible ? "password" : "text";
+  togglePassword.textContent = visible ? "Mostrar" : "Ocultar";
+  togglePassword.setAttribute("aria-label", visible ? "Mostrar contraseña" : "Ocultar contraseña");
+});
+
+["keydown", "keyup"].forEach(evt => loginPassword.addEventListener(evt, (e) => {
+  if (e.getModifierState) capsWarning.hidden = !e.getModifierState("CapsLock");
+}));
+
+document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
+
 // INICIALIZAR
 document.getElementById("form-personal").addEventListener("submit", guardar);
-cargar();

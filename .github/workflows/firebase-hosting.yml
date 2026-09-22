@@ -51,3 +51,14 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           channelId: live
+
+      - name: Publicar reglas de Firestore
+        if: env.FIREBASE_SA != ''
+        continue-on-error: true
+        env:
+          PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+        run: |
+          SA_FILE="$RUNNER_TEMP/sa.json"
+          trap 'rm -f "$SA_FILE"' EXIT
+          printf '%s' "$FIREBASE_SA" > "$SA_FILE"
+          GOOGLE_APPLICATION_CREDENTIALS="$SA_FILE" npx --yes firebase-tools deploy --only firestore:rules --project "$PROJECT_ID" --non-interactive
