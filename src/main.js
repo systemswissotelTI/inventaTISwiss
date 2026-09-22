@@ -201,7 +201,7 @@ async function cargar() {
     const snap = await getDocs(col);
     allRecords = [];
     snap.forEach(d => allRecords.push({ id: d.id, ...d.data() }));
-    mostrarTabla(allRecords);
+    aplicarFiltro(false);
     ocultarAviso();
   } catch (error) {
     console.error("Error:", error);
@@ -209,24 +209,85 @@ async function cargar() {
   }
 }
 
-function mostrarTabla(registros) {
+// TABLA PAGINADA
+const POR_PAGINA = 50;
+const tablaWrap = document.getElementById("tablaWrap");
+const paginacion = document.getElementById("paginacion");
+let listaActual = [];
+let pagina = 1;
+
+function mostrarTabla(registros, reiniciar = true) {
+  listaActual = registros;
+  if (reiniciar) pagina = 1;
+  pintarPagina();
+}
+
+function pintarPagina() {
   const tbody = document.getElementById("tbody");
+  const total = listaActual.length;
+  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+  pagina = Math.min(Math.max(1, pagina), paginas);
+  const desde = (pagina - 1) * POR_PAGINA;
+
   tbody.innerHTML = "";
-  
-  registros.forEach(p => {
+  if (total === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" class="vacio">No hay registros para mostrar.</td></tr>`;
+  }
+  listaActual.slice(desde, desde + POR_PAGINA).forEach(p => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td>${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="del">✕</td>`;
+    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td class="nowrap">${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="del" title="Eliminar">✕</td>`;
     tr.querySelector(".del").addEventListener("click", () => eliminar(p.id, p.Nombre));
     tbody.appendChild(tr);
   });
+  tablaWrap.scrollTop = 0;
+  pintarPaginacion(total, paginas, desde);
 }
 
-// BÚSQUEDA
-document.getElementById("searchInput").addEventListener("input", (e) => {
-  const q = e.target.value.toLowerCase();
-  const filtrados = allRecords.filter(p => (p.Nombre || "").toLowerCase().includes(q) || String(p.DNI || "").toLowerCase().includes(q));
-  mostrarTabla(filtrados);
+// Números de página con "…": 1 … 4 5 6 … 12
+function rangoPaginas(paginas) {
+  const set = new Set([1, paginas, pagina - 1, pagina, pagina + 1]);
+  const nums = [...set].filter(n => n >= 1 && n <= paginas).sort((a, b) => a - b);
+  const res = [];
+  nums.forEach((n, i) => {
+    if (i && n - nums[i - 1] > 1) res.push("…");
+    res.push(n);
+  });
+  return res;
+}
+
+function pintarPaginacion(total, paginas, desde) {
+  const hasta = Math.min(desde + POR_PAGINA, total);
+  const info = total ? `Mostrando <b>${desde + 1}–${hasta}</b> de <b>${total}</b> registros` : "0 registros";
+  const botones = rangoPaginas(paginas).map(n => n === "…"
+    ? `<span class="pag-sep">…</span>`
+    : `<button type="button" class="pag-btn${n === pagina ? " activa" : ""}" data-pag="${n}"${n === pagina ? ' aria-current="page"' : ""}>${n}</button>`
+  ).join("");
+  paginacion.innerHTML = `
+    <span class="pag-info">${info}</span>
+    <div class="pag-controles">
+      <button type="button" class="pag-btn" data-pag="${pagina - 1}"${pagina === 1 ? " disabled" : ""} aria-label="Página anterior">‹ Anterior</button>
+      ${botones}
+      <button type="button" class="pag-btn" data-pag="${pagina + 1}"${pagina === paginas ? " disabled" : ""} aria-label="Página siguiente">Siguiente ›</button>
+    </div>`;
+}
+
+paginacion.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-pag]");
+  if (!b || b.disabled) return;
+  pagina = Number(b.dataset.pag);
+  pintarPagina();
 });
+
+// BÚSQUEDA
+const searchInput = document.getElementById("searchInput");
+function aplicarFiltro(reiniciar = true) {
+  const q = searchInput.value.trim().toLowerCase();
+  const filtrados = q
+    ? allRecords.filter(p => (p.Nombre || "").toLowerCase().includes(q) || String(p.DNI || "").toLowerCase().includes(q))
+    : allRecords;
+  mostrarTabla(filtrados, reiniciar);
+}
+searchInput.addEventListener("input", () => aplicarFiltro(true));
 
 // LIMPIAR TODO
 document.getElementById("clearAllBtn").addEventListener("click", async () => {
