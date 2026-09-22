@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Sistema Personal - Firebase</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+
+<h1>Personal (colección: <b>personal</b>)</h1>
+
+<form name="f" id="form-personal">
+  <input name="dni" placeholder="DNI" required>
+  <input name="codigo" placeholder="Código" required>
+  <input name="nombre" placeholder="Nombre" required>
+  <input name="foto" placeholder="Foto (SI/NO)">
+  <input name="fechaIngreso" type="date">
+  <input name="puestoReal" placeholder="Puesto Real">
+  <input name="ccReal" placeholder="CC Real">
+  <input name="unidadReal" placeholder="Unidad Real">
+  <input name="nombreHost" placeholder="Nombre Host">
+  <input name="nuevaTarjetaMicros" placeholder="Nueva Tarjeta Micros">
+  <button type="submit">Guardar</button>
+</form>
+
+<table>
+  <thead><tr>
+    <th>DNI</th><th>Código</th><th>Nombre</th><th>Foto</th><th>F. Ingreso</th>
+    <th>Puesto Real</th><th>CC Real</th><th>Unidad Real</th><th>Nombre Host</th><th>Tarjeta Micros</th><th></th>
+  </tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
