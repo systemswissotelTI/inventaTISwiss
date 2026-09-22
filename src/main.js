@@ -5,6 +5,7 @@ import {
   setPersistence, browserLocalPersistence, browserSessionPersistence
 } from "firebase/auth";
 import { notificar, confirmar } from "./notificaciones.js";
+import { iniciarCarrusel } from "./carrusel.js";
 
 const COLLECTION = "personal";
 const col = configOk ? collection(db, COLLECTION) : null;
@@ -254,6 +255,8 @@ document.getElementById("clearAllBtn").addEventListener("click", async () => {
 });
 
 // AUTENTICACIÓN
+iniciarCarrusel(document.getElementById("carrusel"));
+
 const splash = document.getElementById("splash");
 const loginView = document.getElementById("login");
 const appView = document.getElementById("app");
