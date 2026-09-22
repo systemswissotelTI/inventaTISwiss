@@ -6,5 +6,8 @@ service cloud.firestore {
     match /personal/{docId} {
       allow read, write: if request.auth != null;
     }
+    match /inventario/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }

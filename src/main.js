@@ -6,6 +6,11 @@ import {
 } from "firebase/auth";
 import { notificar, confirmar } from "./notificaciones.js";
 import { iniciarCarrusel } from "./carrusel.js";
+import {
+  escapeHtml, normalizarFecha, textoDni, claveDni, limpiarClaves,
+  ICONO_EDITAR, htmlPaginacion, conectarImportador
+} from "./utils.js";
+import { iniciarInventario, cargarInventario, limpiarInventario, refrescarInventario, contarEquiposPorDni, verEquiposDe } from "./inventario.js";
 
 const COLLECTION = "personal";
 const col = configOk ? collection(db, COLLECTION) : null;
@@ -27,67 +32,12 @@ function requiereConfig() {
   return false;
 }
 
-function escapeHtml(v) {
-  return String(v ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 // IMPORTADOR EXCEL
 const dropZone = document.getElementById("dropZone");
 const excelInput = document.getElementById("excelInput");
 const selectFileBtn = document.getElementById("selectFileBtn");
 
-selectFileBtn.addEventListener("click", () => excelInput.click());
-dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
-dropZone.addEventListener("dragleave", () => { dropZone.classList.remove("dragover"); });
-dropZone.addEventListener("drop", (e) => { e.preventDefault(); dropZone.classList.remove("dragover"); procesarExcel(e.dataTransfer.files[0]); });
-excelInput.addEventListener("change", (e) => { if(e.target.files[0]) procesarExcel(e.target.files[0]); });
-
-const pad2 = (n) => String(n).padStart(2, "0");
-
-// Convierte la fecha del Excel (número de serie, texto dd/mm/aaaa o aaaa-mm-dd) a "aaaa-mm-dd".
-// Devuelve null si no se reconoce, para no detener la importación.
-function normalizarFecha(v) {
-  if (v === null || v === undefined || v === "") return "";
-  if (typeof v === "number") {
-    const d = XLSX.SSF.parse_date_code(v);
-    return d && d.y > 1900 ? `${d.y}-${pad2(d.m)}-${pad2(d.d)}` : null;
-  }
-  const s = String(v).trim();
-  if (!s) return "";
-  let m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
-  if (m) {
-    const dia = +m[1], mes = +m[2];
-    const anio = m[3].length === 2 ? 2000 + +m[3] : +m[3];
-    if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) return `${anio}-${pad2(mes)}-${pad2(dia)}`;
-    return null;
-  }
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
-  return null;
-}
-
-// DNI como texto; si Excel lo guardó como número se recuperan los ceros a la izquierda (8 dígitos)
-function textoDni(v) {
-  if (typeof v === "number") return String(v).padStart(8, "0");
-  return String(v ?? "").trim();
-}
-
-// Clave para comparar DNIs sin importar ceros a la izquierda ni espacios
-function claveDni(v) {
-  return textoDni(v).replace(/\s+/g, "").replace(/^0+/, "").toUpperCase();
-}
-
-// Quita espacios de los nombres de columna (p. ej. "DNI " -> "DNI")
-function limpiarClaves(row) {
-  const r = {};
-  for (const [k, v] of Object.entries(row)) r[String(k).trim()] = v;
-  return r;
-}
+conectarImportador({ zona: dropZone, boton: selectFileBtn, input: excelInput, alSoltar: procesarExcel });
 
 async function procesarExcel(file) {
   if (!requiereConfig()) return;
@@ -104,10 +54,11 @@ async function procesarExcel(file) {
     const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { defval: "" }).map(limpiarClaves);
     if (jsonData.length === 0) { notificar("warning", "Hoja vacía", "La hoja \"Personal\" no tiene filas."); excelInput.value = ""; return; }
 
-    const registrosValidos = jsonData.filter(r => r.DNI && r.Código && r.Nombre);
+    // El Código es opcional: hay filas de áreas o puestos compartidos (p. ej. "Sistemas") a las que se asignan equipos
+    const registrosValidos = jsonData.filter(r => String(r.DNI).trim() && String(r.Nombre).trim());
     const omitidos = jsonData.length - registrosValidos.length;
     if (registrosValidos.length === 0) {
-      notificar("warning", "Sin registros válidos", "Ninguna fila tiene DNI, Código y Nombre a la vez.");
+      notificar("warning", "Sin registros válidos", "Ninguna fila tiene DNI y Nombre a la vez.");
       excelInput.value = "";
       return;
     }
@@ -128,7 +79,7 @@ async function procesarExcel(file) {
     const detalles = [];
     if (aActualizar) detalles.push(`${aActualizar} ya existen (mismo DNI) y se actualizarán.`);
     if (repetidosEnArchivo) detalles.push(`${repetidosEnArchivo} filas repetidas en el archivo se unifican.`);
-    if (omitidos) detalles.push(`${omitidos} filas sin DNI, Código o Nombre se omiten.`);
+    if (omitidos) detalles.push(`${omitidos} filas sin DNI o Nombre se omiten.`);
     const ok = await confirmar({
       titulo: `¿Importar ${filas.length} registros?`,
       mensaje: `${nuevos} nuevos. ${detalles.join(" ")}`,
@@ -243,6 +194,8 @@ async function cargar() {
     snap.forEach(d => allRecords.push({ id: d.id, ...d.data() }));
     aplicarFiltro(false);
     actualizarBotonDuplicados();
+    actualizarContadores();
+    refrescarInventario();
     ocultarAviso();
   } catch (error) {
     console.error("Error:", error);
@@ -251,11 +204,9 @@ async function cargar() {
 }
 
 // EDICIÓN
-const ICONO_EDITAR = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-
 const CAMPOS = [
   { k: "DNI", label: "DNI", requerido: true },
-  { k: "Código", label: "Código", requerido: true },
+  { k: "Código", label: "Código" },
   { k: "Nombre", label: "Nombre", requerido: true, ancho: true },
   { k: "Foto", label: "Foto", opciones: ["", "SI", "NO"] },
   { k: "Fecha de Ingreso", label: "Fecha de ingreso", fecha: true },
@@ -361,45 +312,20 @@ function pintarPagina() {
 
   tbody.innerHTML = "";
   if (total === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="vacio">No hay registros para mostrar.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="vacio">No hay registros para mostrar.</td></tr>`;
   }
+  const equipos = contarEquiposPorDni();
   listaActual.slice(desde, desde + POR_PAGINA).forEach(p => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td class="nowrap">${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="acciones"><button type="button" class="accion editar" title="Editar" aria-label="Editar ${escapeHtml(p.Nombre)}">${ICONO_EDITAR}</button><button type="button" class="accion eliminar" title="Eliminar" aria-label="Eliminar ${escapeHtml(p.Nombre)}">✕</button></td>`;
+    const n = equipos.get(claveDni(p.DNI)) || 0;
+    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td class="nowrap">${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="centro">${n ? `<button type="button" class="chip-equipos" title="Ver equipos asignados">${n}</button>` : '<span class="sin-dato">0</span>'}</td><td class="acciones"><button type="button" class="accion editar" title="Editar" aria-label="Editar ${escapeHtml(p.Nombre)}">${ICONO_EDITAR}</button><button type="button" class="accion eliminar" title="Eliminar" aria-label="Eliminar ${escapeHtml(p.Nombre)}">✕</button></td>`;
     tr.querySelector(".editar").addEventListener("click", () => abrirEdicion(p));
     tr.querySelector(".eliminar").addEventListener("click", () => eliminar(p.id, p.Nombre));
+    tr.querySelector(".chip-equipos")?.addEventListener("click", () => { mostrarPestana("inventario"); verEquiposDe(p.DNI); });
     tbody.appendChild(tr);
   });
   tablaWrap.scrollTop = 0;
-  pintarPaginacion(total, paginas, desde);
-}
-
-// Números de página con "…": 1 … 4 5 6 … 12
-function rangoPaginas(paginas) {
-  const set = new Set([1, paginas, pagina - 1, pagina, pagina + 1]);
-  const nums = [...set].filter(n => n >= 1 && n <= paginas).sort((a, b) => a - b);
-  const res = [];
-  nums.forEach((n, i) => {
-    if (i && n - nums[i - 1] > 1) res.push("…");
-    res.push(n);
-  });
-  return res;
-}
-
-function pintarPaginacion(total, paginas, desde) {
-  const hasta = Math.min(desde + POR_PAGINA, total);
-  const info = total ? `Mostrando <b>${desde + 1}–${hasta}</b> de <b>${total}</b> registros` : "0 registros";
-  const botones = rangoPaginas(paginas).map(n => n === "…"
-    ? `<span class="pag-sep">…</span>`
-    : `<button type="button" class="pag-btn${n === pagina ? " activa" : ""}" data-pag="${n}"${n === pagina ? ' aria-current="page"' : ""}>${n}</button>`
-  ).join("");
-  paginacion.innerHTML = `
-    <span class="pag-info">${info}</span>
-    <div class="pag-controles">
-      <button type="button" class="pag-btn" data-pag="${pagina - 1}"${pagina === 1 ? " disabled" : ""} aria-label="Página anterior">‹ Anterior</button>
-      ${botones}
-      <button type="button" class="pag-btn" data-pag="${pagina + 1}"${pagina === paginas ? " disabled" : ""} aria-label="Página siguiente">Siguiente ›</button>
-    </div>`;
+  paginacion.innerHTML = htmlPaginacion(total, pagina, paginas, POR_PAGINA);
 }
 
 paginacion.addEventListener("click", (e) => {
@@ -504,6 +430,32 @@ document.getElementById("clearAllBtn").addEventListener("click", async () => {
   }
 });
 
+// PESTAÑAS
+const pestanas = document.querySelectorAll(".pestana");
+function mostrarPestana(nombre) {
+  pestanas.forEach(b => {
+    const activa = b.dataset.vista === nombre;
+    b.classList.toggle("activa", activa);
+    b.setAttribute("aria-selected", activa ? "true" : "false");
+    document.getElementById(b.getAttribute("aria-controls")).hidden = !activa;
+  });
+  document.getElementById("subtitulo").textContent = nombre === "inventario" ? "Inventario de equipos TI" : "Gestión de Personal";
+  try { localStorage.setItem("pestana", nombre); } catch {}
+}
+pestanas.forEach(b => b.addEventListener("click", () => mostrarPestana(b.dataset.vista)));
+try { mostrarPestana(localStorage.getItem("pestana") === "inventario" ? "inventario" : "personal"); } catch { mostrarPestana("personal"); }
+
+function actualizarContadores(totalInventario) {
+  document.getElementById("cuentaPersonal").textContent = allRecords.length;
+  if (totalInventario !== undefined) document.getElementById("cuentaInventario").textContent = totalInventario;
+}
+
+iniciarInventario({
+  requiereConfig,
+  obtenerPersonal: () => allRecords,
+  alCambiar: (total) => { actualizarContadores(total); pintarPagina(); }
+});
+
 // PIE DE PÁGINA
 document.querySelectorAll(".anio").forEach(e => { e.textContent = new Date().getFullYear(); });
 
@@ -564,9 +516,11 @@ if (!configOk) {
       rememberMe.checked = true;
       loginAlert.hidden = true;
       cargar();
+      cargarInventario();
     } else {
       allRecords = [];
       mostrarTabla([]);
+      limpiarInventario();
       ocultarAviso();
       loginEmail.focus();
     }
