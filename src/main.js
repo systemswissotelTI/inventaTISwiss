@@ -71,6 +71,17 @@ function normalizarFecha(v) {
   return null;
 }
 
+// DNI como texto; si Excel lo guardó como número se recuperan los ceros a la izquierda (8 dígitos)
+function textoDni(v) {
+  if (typeof v === "number") return String(v).padStart(8, "0");
+  return String(v ?? "").trim();
+}
+
+// Clave para comparar DNIs sin importar ceros a la izquierda ni espacios
+function claveDni(v) {
+  return textoDni(v).replace(/\s+/g, "").replace(/^0+/, "").toUpperCase();
+}
+
 // Quita espacios de los nombres de columna (p. ej. "DNI " -> "DNI")
 function limpiarClaves(row) {
   const r = {};
@@ -101,9 +112,26 @@ async function procesarExcel(file) {
       return;
     }
 
+    // Una fila por DNI dentro del archivo (gana la última)
+    const porDni = new Map();
+    registrosValidos.forEach(r => porDni.set(claveDni(r.DNI), r));
+    const filas = [...porDni.values()];
+    const repetidosEnArchivo = registrosValidos.length - filas.length;
+
+    // Si el DNI ya existe se actualiza ese registro en vez de crear otro
+    await cargar();
+    const existentes = new Map();
+    allRecords.forEach(r => { const k = claveDni(r.DNI); if (k && !existentes.has(k)) existentes.set(k, r.id); });
+    const aActualizar = filas.filter(r => existentes.has(claveDni(r.DNI))).length;
+    const nuevos = filas.length - aActualizar;
+
+    const detalles = [];
+    if (aActualizar) detalles.push(`${aActualizar} ya existen (mismo DNI) y se actualizarán.`);
+    if (repetidosEnArchivo) detalles.push(`${repetidosEnArchivo} filas repetidas en el archivo se unifican.`);
+    if (omitidos) detalles.push(`${omitidos} filas sin DNI, Código o Nombre se omiten.`);
     const ok = await confirmar({
-      titulo: `¿Importar ${registrosValidos.length} registros?`,
-      mensaje: omitidos ? `Se omitirán ${omitidos} filas sin DNI, Código o Nombre.` : `Desde la hoja "${nombreHoja}" de ${file.name}.`,
+      titulo: `¿Importar ${filas.length} registros?`,
+      mensaje: `${nuevos} nuevos. ${detalles.join(" ")}`,
       aceptar: "Importar"
     });
     if (!ok) { excelInput.value = ""; return; }
@@ -115,13 +143,14 @@ async function procesarExcel(file) {
     statusDiv.style.display = "block";
     
     const batchSize = 20;
-    for (let i = 0; i < registrosValidos.length; i += batchSize) {
+    for (let i = 0; i < filas.length; i += batchSize) {
       const batch = writeBatch(db);
-      const lote = registrosValidos.slice(i, i + batchSize);
+      const lote = filas.slice(i, i + batchSize);
       
       lote.forEach(row => {
-        batch.set(doc(col), {
-          DNI: (row.DNI || "").toString().trim(),
+        const idExistente = existentes.get(claveDni(row.DNI));
+        batch.set(idExistente ? doc(db, COLLECTION, idExistente) : doc(col), {
+          DNI: textoDni(row.DNI),
           Código: (row.Código || "").toString().trim(),
           Nombre: (row.Nombre || "").toString().trim().toUpperCase(),
           Foto: (row.Foto || "").toString().trim(),
@@ -139,13 +168,13 @@ async function procesarExcel(file) {
       });
       
       await batch.commit();
-      const pct = Math.round(((i + lote.length) / registrosValidos.length) * 100);
+      const pct = Math.round(((i + lote.length) / filas.length) * 100);
       progressFill.style.width = pct + "%";
-      statusText.textContent = `Importando ${i + lote.length}/${registrosValidos.length}...`;
+      statusText.textContent = `Importando ${i + lote.length}/${filas.length}...`;
     }
     
-    statusText.textContent = `${registrosValidos.length} registros importados`;
-    notificar("success", "Importación completada", `${registrosValidos.length} registros importados${omitidos ? `, ${omitidos} filas omitidas` : ""}.`);
+    statusText.textContent = `${filas.length} registros importados`;
+    notificar("success", "Importación completada", `${nuevos} nuevos y ${aActualizar} actualizados${omitidos ? `; ${omitidos} filas omitidas` : ""}.`);
     if (fechasNoReconocidas) notificar("warning", "Fechas sin reconocer", `${fechasNoReconocidas} fechas se guardaron tal cual porque no tienen un formato de fecha válido.`);
     setTimeout(() => { statusDiv.style.display = "none"; excelInput.value = ""; cargar(); }, 1500);
   } catch (error) {
@@ -172,6 +201,17 @@ async function guardar(e) {
     "Nombre Host": f["Nombre Host"].value.trim(),
     "Nueva Tajeta Micros": f["Nueva Tajeta Micros"].value.trim()
   };
+  const existente = allRecords.find(r => claveDni(r.DNI) === claveDni(data.DNI));
+  if (existente) {
+    const editar = await confirmar({
+      titulo: `Ya existe un registro con DNI ${data.DNI}`,
+      mensaje: `${existente.Nombre || ""}. Para evitar duplicados, edita el registro existente.`,
+      aceptar: "Editar existente",
+      cancelar: "Volver"
+    });
+    if (editar) abrirEdicion(existente);
+    return;
+  }
   try {
     await addDoc(col, data);
     f.reset();
@@ -202,6 +242,7 @@ async function cargar() {
     allRecords = [];
     snap.forEach(d => allRecords.push({ id: d.id, ...d.data() }));
     aplicarFiltro(false);
+    actualizarBotonDuplicados();
     ocultarAviso();
   } catch (error) {
     console.error("Error:", error);
@@ -379,6 +420,64 @@ function aplicarFiltro(reiniciar = true) {
 }
 searchInput.addEventListener("input", () => aplicarFiltro(true));
 
+// DUPLICADOS
+const dupBtn = document.getElementById("dupBtn");
+
+// Puntúa qué copia conservar: más campos con datos y sin la fecha errónea 1970-01-01
+function puntuar(r) {
+  let s = CAMPOS.filter(c => String(r[c.k] ?? "").trim()).length;
+  if (r["Fecha de Ingreso"] === "1970-01-01") s -= 5;
+  return s;
+}
+
+function sobrantesDuplicados() {
+  const grupos = new Map();
+  allRecords.forEach(r => {
+    const k = claveDni(r.DNI);
+    if (!k) return;
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(r);
+  });
+  const sobran = [];
+  grupos.forEach(g => {
+    if (g.length < 2) return;
+    g.sort((a, b) => puntuar(b) - puntuar(a));
+    sobran.push(...g.slice(1));
+  });
+  return sobran;
+}
+
+function actualizarBotonDuplicados() {
+  const n = sobrantesDuplicados().length;
+  dupBtn.hidden = n === 0;
+  dupBtn.textContent = `Quitar duplicados (${n})`;
+}
+
+dupBtn.addEventListener("click", async () => {
+  if (!requiereConfig()) return;
+  const sobran = sobrantesDuplicados();
+  if (!sobran.length) { notificar("info", "No hay duplicados"); return; }
+  const dnis = new Set(sobran.map(r => claveDni(r.DNI))).size;
+  const ok = await confirmar({
+    titulo: `¿Quitar ${sobran.length} registros duplicados?`,
+    mensaje: `Hay ${dnis} ${dnis === 1 ? "DNI repetido" : "DNI repetidos"}. Se conserva una copia de cada uno (la más completa, evitando fechas 1970-01-01) y se eliminan las demás.`,
+    aceptar: "Quitar duplicados",
+    peligro: true
+  });
+  if (!ok) return;
+  try {
+    for (let i = 0; i < sobran.length; i += 20) {
+      const batch = writeBatch(db);
+      sobran.slice(i, i + 20).forEach(r => batch.delete(doc(db, COLLECTION, r.id)));
+      await batch.commit();
+    }
+    notificar("success", "Duplicados eliminados", `${sobran.length} registros eliminados; queda uno por DNI.`);
+    cargar();
+  } catch (error) {
+    notificar("error", "No se pudieron quitar los duplicados", error.message);
+  }
+});
+
 // LIMPIAR TODO
 document.getElementById("clearAllBtn").addEventListener("click", async () => {
   if (!requiereConfig()) return;
@@ -404,6 +503,9 @@ document.getElementById("clearAllBtn").addEventListener("click", async () => {
     notificar("error", "No se pudieron eliminar", error.message);
   }
 });
+
+// PIE DE PÁGINA
+document.querySelectorAll(".anio").forEach(e => { e.textContent = new Date().getFullYear(); });
 
 // AUTENTICACIÓN
 iniciarCarrusel(document.getElementById("carrusel"));
