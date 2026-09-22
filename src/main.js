@@ -17,7 +17,7 @@ function ocultarAviso() {
 }
 function requiereConfig() {
   if (configOk) return true;
-  mostrarAviso("⚠️ Falta la configuración de Firebase (VITE_FIREBASE_API_KEY / VITE_FIREBASE_PROJECT_ID). La app no puede leer ni guardar datos.");
+  mostrarAviso("Falta la configuración de Firebase (VITE_FIREBASE_API_KEY / VITE_FIREBASE_PROJECT_ID). La app no puede leer ni guardar datos.");
   return false;
 }
 
@@ -47,13 +47,13 @@ async function procesarExcel(file) {
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, { type: "array" });
     const ws = wb.Sheets["Personal"];
-    if (!ws) { alert("❌ Hoja 'Personal' no encontrada"); return; }
+    if (!ws) { alert("Error: hoja 'Personal' no encontrada"); return; }
     
     const jsonData = XLSX.utils.sheet_to_json(ws);
-    if (jsonData.length === 0) { alert("❌ Hoja vacía"); return; }
+    if (jsonData.length === 0) { alert("Error: la hoja está vacía"); return; }
     
     const registrosValidos = jsonData.filter(r => r.DNI && r.Código && r.Nombre);
-    if (registrosValidos.length === 0) { alert("❌ Sin registros válidos"); return; }
+    if (registrosValidos.length === 0) { alert("Error: no hay registros válidos"); return; }
     
     if (!window.confirm(`¿Importar ${registrosValidos.length} registros?`)) return;
     
@@ -85,13 +85,13 @@ async function procesarExcel(file) {
       await batch.commit();
       const pct = Math.round(((i + lote.length) / registrosValidos.length) * 100);
       progressFill.style.width = pct + "%";
-      statusText.textContent = `📤 ${i + lote.length}/${registrosValidos.length}...`;
+      statusText.textContent = `Importando ${i + lote.length}/${registrosValidos.length}...`;
     }
     
-    statusText.textContent = `✅ ${registrosValidos.length} importados`;
+    statusText.textContent = `${registrosValidos.length} registros importados`;
     setTimeout(() => { statusDiv.style.display = "none"; excelInput.value = ""; cargar(); }, 2000);
   } catch (error) {
-    alert(`❌ ${error.message}`);
+    alert(`Error: ${error.message}`);
     document.getElementById("importStatus").style.display = "none";
   }
 }
@@ -118,7 +118,7 @@ async function guardar(e) {
     f.reset();
     cargar();
   } catch (error) {
-    mostrarAviso(`❌ Error al guardar: ${error.message}`);
+    mostrarAviso(`Error al guardar: ${error.message}`);
   }
 }
 
@@ -129,7 +129,7 @@ async function eliminar(id) {
       await deleteDoc(doc(db, COLLECTION, id));
       cargar();
     } catch (error) {
-      mostrarAviso(`❌ Error al eliminar: ${error.message}`);
+      mostrarAviso(`Error al eliminar: ${error.message}`);
     }
   }
 }
@@ -144,7 +144,7 @@ async function cargar() {
     ocultarAviso();
   } catch (error) {
     console.error("Error:", error);
-    mostrarAviso(`❌ Error al cargar los datos: ${error.message}`);
+    mostrarAviso(`Error al cargar los datos: ${error.message}`);
   }
 }
 
@@ -171,7 +171,7 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
 document.getElementById("clearAllBtn").addEventListener("click", async () => {
   if (!requiereConfig()) return;
   if (allRecords.length === 0) { alert("Sin registros"); return; }
-  if (!window.confirm(`⚠️ ¿Eliminar ${allRecords.length} registros?`)) return;
+  if (!window.confirm(`¿Eliminar ${allRecords.length} registros?`)) return;
   
   try {
     const batchSize = 20;
@@ -180,10 +180,10 @@ document.getElementById("clearAllBtn").addEventListener("click", async () => {
       allRecords.slice(i, i + batchSize).forEach(r => batch.delete(doc(db, COLLECTION, r.id)));
       await batch.commit();
     }
-    alert(`✅ ${allRecords.length} eliminados`);
+    alert(`${allRecords.length} registros eliminados`);
     cargar();
   } catch (error) {
-    alert(`❌ ${error.message}`);
+    alert(`Error: ${error.message}`);
   }
 });
 
