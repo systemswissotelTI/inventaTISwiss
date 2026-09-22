@@ -10,5 +10,8 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Sin apiKey o projectId no se inicializa Firebase
+export const configOk = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+
+export const app = configOk ? initializeApp(firebaseConfig) : null;
+export const db = configOk ? getFirestore(app) : null;

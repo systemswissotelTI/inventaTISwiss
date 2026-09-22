@@ -1,9 +1,34 @@
-import { db } from "./firebase-config.js";
+import { db, configOk } from "./firebase-config.js";
 import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch } from "firebase/firestore";
 
 const COLLECTION = "personal";
-const col = collection(db, COLLECTION);
+const col = configOk ? collection(db, COLLECTION) : null;
 let allRecords = [];
+
+// AVISO DE ESTADO
+const estado = document.getElementById("estado");
+function mostrarAviso(msg) {
+  estado.textContent = msg;
+  estado.hidden = false;
+}
+function ocultarAviso() {
+  estado.hidden = true;
+  estado.textContent = "";
+}
+function requiereConfig() {
+  if (configOk) return true;
+  mostrarAviso("⚠️ Falta la configuración de Firebase (VITE_FIREBASE_API_KEY / VITE_FIREBASE_PROJECT_ID). La app no puede leer ni guardar datos.");
+  return false;
+}
+
+function escapeHtml(v) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 // IMPORTADOR EXCEL
 const dropZone = document.getElementById("dropZone");
@@ -17,6 +42,7 @@ dropZone.addEventListener("drop", (e) => { e.preventDefault(); dropZone.style.ba
 excelInput.addEventListener("change", (e) => { if(e.target.files[0]) procesarExcel(e.target.files[0]); });
 
 async function procesarExcel(file) {
+  if (!requiereConfig()) return;
   try {
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, { type: "array" });
@@ -73,6 +99,7 @@ async function procesarExcel(file) {
 // CRUD MANUAL
 async function guardar(e) {
   e.preventDefault();
+  if (!requiereConfig()) return;
   const f = e.target;
   const data = {
     DNI: f.DNI.value.trim(),
@@ -91,29 +118,33 @@ async function guardar(e) {
     f.reset();
     cargar();
   } catch (error) {
-    alert(`❌ ${error.message}`);
+    mostrarAviso(`❌ Error al guardar: ${error.message}`);
   }
 }
 
 async function eliminar(id) {
+  if (!requiereConfig()) return;
   if (window.confirm("¿Eliminar?")) {
     try {
       await deleteDoc(doc(db, COLLECTION, id));
       cargar();
     } catch (error) {
-      alert(`❌ ${error.message}`);
+      mostrarAviso(`❌ Error al eliminar: ${error.message}`);
     }
   }
 }
 
 async function cargar() {
+  if (!requiereConfig()) return;
   try {
     const snap = await getDocs(col);
     allRecords = [];
     snap.forEach(d => allRecords.push({ id: d.id, ...d.data() }));
     mostrarTabla(allRecords);
+    ocultarAviso();
   } catch (error) {
     console.error("Error:", error);
+    mostrarAviso(`❌ Error al cargar los datos: ${error.message}`);
   }
 }
 
@@ -123,7 +154,7 @@ function mostrarTabla(registros) {
   
   registros.forEach(p => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.DNI || ""}</td><td>${p.Código || ""}</td><td>${p.Nombre || ""}</td><td>${p.Foto || ""}</td><td>${p["Fecha de Ingreso"] || ""}</td><td>${p["Puesto Real"] || ""}</td><td>${p["CC Real"] || ""}</td><td>${p["Unidad Real"] || ""}</td><td>${p["Nombre Host"] || ""}</td><td>${p["Nueva Tajeta Micros"] || ""}</td><td class="del">✕</td>`;
+    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td>${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="del">✕</td>`;
     tr.querySelector(".del").addEventListener("click", () => eliminar(p.id));
     tbody.appendChild(tr);
   });
@@ -132,12 +163,13 @@ function mostrarTabla(registros) {
 // BÚSQUEDA
 document.getElementById("searchInput").addEventListener("input", (e) => {
   const q = e.target.value.toLowerCase();
-  const filtrados = allRecords.filter(p => (p.Nombre || "").toLowerCase().includes(q) || (p.DNI || "").toLowerCase().includes(q));
+  const filtrados = allRecords.filter(p => (p.Nombre || "").toLowerCase().includes(q) || String(p.DNI || "").toLowerCase().includes(q));
   mostrarTabla(filtrados);
 });
 
 // LIMPIAR TODO
 document.getElementById("clearAllBtn").addEventListener("click", async () => {
+  if (!requiereConfig()) return;
   if (allRecords.length === 0) { alert("Sin registros"); return; }
   if (!window.confirm(`⚠️ ¿Eliminar ${allRecords.length} registros?`)) return;
   

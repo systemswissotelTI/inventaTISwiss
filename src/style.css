@@ -140,3 +140,12 @@ tr:hover { background: #f9f9f9; }
   border-radius: 4px;
   font-size: 13px;
 }
+
+#estado {
+  background: #fdecea;
+  color: #b3261e;
+  border: 1px solid #f5c2c0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 25px;
+}
