@@ -10,7 +10,12 @@ import {
   escapeHtml, normalizarFecha, textoDni, claveDni, limpiarClaves,
   ICONO_EDITAR, htmlPaginacion, conectarImportador
 } from "./utils.js";
-import { iniciarInventario, cargarInventario, limpiarInventario, refrescarInventario, contarEquiposPorDni, verEquiposDe } from "./inventario.js";
+import {
+  iniciarInventario, cargarInventario, limpiarInventario, refrescarInventario,
+  contarEquiposPorDni, verEquiposDe, equiposResueltos, obtenerCatalogos
+} from "./inventario.js";
+import { iniciarReportes, refrescarReportes } from "./reportes.js";
+import { exportarExcel } from "./exportar.js";
 
 const COLLECTION = "personal";
 const col = configOk ? collection(db, COLLECTION) : null;
@@ -159,6 +164,7 @@ async function cargar() {
     actualizarBotonDuplicados();
     actualizarContadores();
     refrescarInventario();
+    refrescarReportes();
     ocultarAviso();
   } catch (error) {
     console.error("Error:", error);
@@ -418,11 +424,15 @@ function mostrarPestana(nombre) {
     b.setAttribute("aria-selected", activa ? "true" : "false");
     document.getElementById(b.getAttribute("aria-controls")).hidden = !activa;
   });
-  document.getElementById("subtitulo").textContent = nombre === "inventario" ? "Inventario de equipos TI" : "Gestión de Personal";
+  document.getElementById("subtitulo").textContent =
+    { personal: "Gestión de Personal", inventario: "Inventario de equipos TI", reportes: "Reportes dinámicos" }[nombre];
   try { localStorage.setItem("pestana", nombre); } catch {}
 }
 pestanas.forEach(b => b.addEventListener("click", () => mostrarPestana(b.dataset.vista)));
-try { mostrarPestana(localStorage.getItem("pestana") === "inventario" ? "inventario" : "personal"); } catch { mostrarPestana("personal"); }
+try {
+  const guardada = localStorage.getItem("pestana");
+  mostrarPestana(["personal", "inventario", "reportes"].includes(guardada) ? guardada : "personal");
+} catch { mostrarPestana("personal"); }
 
 function actualizarContadores(totalInventario) {
   document.getElementById("cuentaPersonal").textContent = allRecords.length;
@@ -432,7 +442,39 @@ function actualizarContadores(totalInventario) {
 iniciarInventario({
   requiereConfig,
   obtenerPersonal: () => allRecords,
-  alCambiar: (total) => { actualizarContadores(total); pintarPagina(); }
+  alCambiar: (total) => { actualizarContadores(total); pintarPagina(); refrescarReportes(); }
+});
+
+iniciarReportes({ obtenerFilas: equiposResueltos, obtenerCatalogos });
+
+// EXPORTAR PERSONAL (lo que se ve con la búsqueda actual)
+document.getElementById("personalExportar").addEventListener("click", async (e) => {
+  const boton = e.currentTarget;
+  if (!listaActual.length) { notificar("info", "No hay registros que exportar"); return; }
+  const equipos = contarEquiposPorDni();
+  const columnas = [...CAMPOS.map(c => c.label), "Equipos"];
+  const filas = listaActual.map(p => ({
+    ...Object.fromEntries(CAMPOS.map(c => [c.label, p[c.k] ?? ""])),
+    Equipos: equipos.get(claveDni(p.DNI)) || 0
+  }));
+  const q = searchInput.value.trim();
+  boton.disabled = true;
+  try {
+    await exportarExcel({
+      archivo: "Personal",
+      hoja: "Personal",
+      titulo: "Personal",
+      detalle: q ? `Búsqueda: "${q}"` : "Todo el personal",
+      columnas,
+      filas,
+      total: `Total: ${filas.length} registros`
+    });
+    notificar("success", "Personal exportado", `${filas.length} registros en Excel.`);
+  } catch (error) {
+    notificar("error", "No se pudo exportar", error.message);
+  } finally {
+    boton.disabled = false;
+  }
 });
 
 // PIE DE PÁGINA
