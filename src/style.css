@@ -666,3 +666,48 @@ td.vacio { text-align: center; color: var(--muted); padding: 32px; }
 .pag-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .pag-sep { padding: 0 4px; }
 .pag-btn.activa:hover { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
+
+/* ACCIONES DE FILA */
+td.acciones { white-space: nowrap; text-align: center; padding: 4px 8px; }
+.th-acciones { text-align: center; }
+
+.accion {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: 0 2px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.accion.editar { color: var(--primary); }
+.accion.eliminar { color: var(--danger); }
+.accion.editar:hover { background: var(--primary-soft); border-color: #c9d5e5; }
+.accion.eliminar:hover { background: #fdf0ee; border-color: #f3c7c0; }
+
+/* FORMULARIO DE EDICIÓN */
+.modal-form { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+form.modal-form { display: block; }
+.modal-form button[type="submit"] { grid-column: auto; justify-self: auto; padding: 8px 16px; border-radius: 6px; font-size: 13px; }
+.modal-form .btn-confirmar:hover { background: var(--primary-dark); }
+.modal-cabecera { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.modal-cabecera .modal-icon { margin: 0; flex: none; }
+.modal-cabecera h3 { margin: 0; }
+.modal-cabecera p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+.campo { display: flex; flex-direction: column; gap: 5px; }
+.campo.ancho { grid-column: 1 / -1; }
+.campo label { font-size: 12px; font-weight: 600; color: var(--text); }
+.campo input, .campo select { width: 100%; padding: 9px 10px; border-radius: 6px; }
+.req { color: var(--danger); }
+
+@media (max-width: 560px) {
+  .form-grid { grid-template-columns: 1fr; }
+}

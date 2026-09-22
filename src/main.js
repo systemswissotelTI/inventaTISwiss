@@ -1,5 +1,5 @@
 import { db, auth, configOk } from "./firebase-config.js";
-import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, writeBatch } from "firebase/firestore";
 import {
   onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
   setPersistence, browserLocalPersistence, browserSessionPersistence
@@ -209,6 +209,95 @@ async function cargar() {
   }
 }
 
+// EDICIÓN
+const ICONO_EDITAR = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+const CAMPOS = [
+  { k: "DNI", label: "DNI", requerido: true },
+  { k: "Código", label: "Código", requerido: true },
+  { k: "Nombre", label: "Nombre", requerido: true, ancho: true },
+  { k: "Foto", label: "Foto", opciones: ["", "SI", "NO"] },
+  { k: "Fecha de Ingreso", label: "Fecha de ingreso", fecha: true },
+  { k: "Puesto Real", label: "Puesto" },
+  { k: "CC Real", label: "Centro de costo" },
+  { k: "Unidad Real", label: "Unidad" },
+  { k: "Nombre Host", label: "Host" },
+  { k: "Nueva Tajeta Micros", label: "Tarjeta Micros" }
+];
+
+function abrirEdicion(p) {
+  if (!requiereConfig()) return;
+  const fondo = document.createElement("div");
+  fondo.className = "modal-fondo";
+  const campos = CAMPOS.map((c, i) => {
+    const v = escapeHtml(p[c.k]);
+    const id = `ed-${i}`;
+    let control;
+    if (c.opciones) {
+      const actual = String(p[c.k] ?? "");
+      const ops = c.opciones.includes(actual) ? c.opciones : [...c.opciones, actual];
+      control = `<select id="${id}" name="f${i}">${ops.map(o => `<option${o === actual ? " selected" : ""}>${escapeHtml(o)}</option>`).join("")}</select>`;
+    } else {
+      // Si la fecha guardada no es aaaa-mm-dd se edita como texto para no perderla
+      const tipo = c.fecha && (!p[c.k] || /^\d{4}-\d{2}-\d{2}$/.test(p[c.k])) ? "date" : "text";
+      control = `<input id="${id}" name="f${i}" type="${tipo}" value="${v}"${c.requerido ? " required" : ""}>`;
+    }
+    return `<div class="campo${c.ancho ? " ancho" : ""}"><label for="${id}">${c.label}${c.requerido ? ' <span class="req">*</span>' : ""}</label>${control}</div>`;
+  }).join("");
+
+  fondo.innerHTML = `
+    <form class="modal modal-form" role="dialog" aria-modal="true" aria-labelledby="edTitulo" novalidate>
+      <div class="modal-cabecera">
+        <span class="modal-icon">${ICONO_EDITAR}</span>
+        <div><h3 id="edTitulo">Editar registro</h3><p></p></div>
+      </div>
+      <div class="form-grid">${campos}</div>
+      <div class="modal-acciones">
+        <button type="button" class="btn-outline" data-cancelar>Cancelar</button>
+        <button type="submit" class="btn-confirmar">Guardar cambios</button>
+      </div>
+    </form>`;
+  fondo.querySelector(".modal-cabecera p").textContent = p.Nombre || "";
+  const form = fondo.querySelector("form");
+
+  const cerrar = () => { document.removeEventListener("keydown", teclas); fondo.remove(); };
+  const teclas = (e) => { if (e.key === "Escape") cerrar(); };
+  document.addEventListener("keydown", teclas);
+  fondo.addEventListener("mousedown", (e) => { if (e.target === fondo) cerrar(); });
+  fondo.querySelector("[data-cancelar]").addEventListener("click", cerrar);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const datos = {};
+    CAMPOS.forEach((c, i) => {
+      let v = form.elements[`f${i}`].value.trim();
+      if (c.k === "Nombre") v = v.toUpperCase();
+      datos[c.k] = v;
+    });
+    const faltan = CAMPOS.filter(c => c.requerido && !datos[c.k]).map(c => c.label);
+    if (faltan.length) {
+      notificar("warning", "Faltan datos obligatorios", faltan.join(", "));
+      return;
+    }
+    const btn = form.querySelector('[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = "Guardando…";
+    try {
+      await updateDoc(doc(db, COLLECTION, p.id), datos);
+      cerrar();
+      notificar("success", "Cambios guardados", datos.Nombre);
+      cargar();
+    } catch (error) {
+      notificar("error", "No se pudieron guardar los cambios", error.message);
+      btn.disabled = false;
+      btn.textContent = "Guardar cambios";
+    }
+  });
+
+  document.body.appendChild(fondo);
+  form.elements.f0.focus();
+}
+
 // TABLA PAGINADA
 const POR_PAGINA = 50;
 const tablaWrap = document.getElementById("tablaWrap");
@@ -235,8 +324,9 @@ function pintarPagina() {
   }
   listaActual.slice(desde, desde + POR_PAGINA).forEach(p => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td class="nowrap">${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="del" title="Eliminar">✕</td>`;
-    tr.querySelector(".del").addEventListener("click", () => eliminar(p.id, p.Nombre));
+    tr.innerHTML = `<td>${escapeHtml(p.DNI)}</td><td>${escapeHtml(p.Código)}</td><td>${escapeHtml(p.Nombre)}</td><td>${escapeHtml(p.Foto)}</td><td class="nowrap">${escapeHtml(p["Fecha de Ingreso"])}</td><td>${escapeHtml(p["Puesto Real"])}</td><td>${escapeHtml(p["CC Real"])}</td><td>${escapeHtml(p["Unidad Real"])}</td><td>${escapeHtml(p["Nombre Host"])}</td><td>${escapeHtml(p["Nueva Tajeta Micros"])}</td><td class="acciones"><button type="button" class="accion editar" title="Editar" aria-label="Editar ${escapeHtml(p.Nombre)}">${ICONO_EDITAR}</button><button type="button" class="accion eliminar" title="Eliminar" aria-label="Eliminar ${escapeHtml(p.Nombre)}">✕</button></td>`;
+    tr.querySelector(".editar").addEventListener("click", () => abrirEdicion(p));
+    tr.querySelector(".eliminar").addEventListener("click", () => eliminar(p.id, p.Nombre));
     tbody.appendChild(tr);
   });
   tablaWrap.scrollTop = 0;
